@@ -1,4 +1,4 @@
-const port = process.env.PORT ? Number(process.env.PORT) : 3001;
+const port = process.env.PORT ? Number(process.env.PORT) : 4001;
 
 // Simple HTTP server using Node's http to avoid extra deps initially
 import http from 'node:http';
