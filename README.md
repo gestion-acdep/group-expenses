@@ -20,6 +20,19 @@ Run at the repo root:
 - Frontend: pnpm app:dev (or pnpm -C app dev)
 - Backend: pnpm server:dev (or pnpm -C server dev)
 
+## Docker (compose)
+
+Hay un `docker-compose.yml` en la raíz que levanta el `server` primero (con healthcheck) y luego el `app`.
+
+Levantar en modo desarrollo/producción (reconstruye imágenes):
+
+```bash
+docker compose up --build
+```
+
+El `server` quedará expuesto en el host en `http://localhost:4050` y el `app` en `http://localhost:10000`.
+
+
 ## Build
 
 - pnpm build

@@ -1,0 +1,31 @@
+version: '3.9'
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: runner
+    image: group-expenses-server:latest
+    container_name: group-expenses-server
+    ports:
+      - "4050:4050"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4050"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+      target: runner
+    image: group-expenses-app:latest
+    container_name: group-expenses-app
+    ports:
+      - "10000:3000"
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      - NEXT_TELEMETRY_DISABLED=1
