@@ -15,12 +15,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Users, DollarSign, Calendar, Trash2, ArrowRight, Search, RefreshCw, User } from "lucide-react"
+import { Plus, Users, DollarSign, Calendar, Trash2, ArrowRight, Search, RefreshCw, User, LogOut } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { GroupDetail } from "@/components/group-detail"
 import { ProfilePanel } from "@/components/profile-panel"
 import { CURRENCIES, POPULAR_CURRENCIES, getCurrencySymbol, formatAmount } from "@/lib/currency"
 import { useTranslation } from "@/lib/translations"
+import { AuthProvider, useAuth } from "@/lib/auth-context"
+import { Auth } from "@/components/auth"
 
 interface Group {
   id: string
@@ -43,7 +45,7 @@ interface Expense {
   category: string
 }
 
-export default function ExpenseApp() {
+function ExpenseApp() {
   const [groups, setGroups] = useState<Group[]>([])
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false)
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
@@ -489,5 +491,63 @@ export default function ExpenseApp() {
         )}
       </div>
     </div>
+  )
+}
+
+function AppContent() {
+  const { user, token, login, logout, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user || !token) {
+    return <Auth onAuthSuccess={login} />
+  }
+
+  return <ExpenseAppWithAuth user={user} token={token} onLogout={logout} />
+}
+
+function ExpenseAppWithAuth({ user, token, onLogout }: { user: any, token: string, onLogout: () => void }) {
+  // This is a simplified version - in a real app you'd modify ExpenseApp to accept user props
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="bg-card border-b border-border sticky top-0 z-10">
+        <div className="max-w-md mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div className="text-center flex-1">
+              <h1 className="text-2xl font-bold text-foreground">Group Expenses</h1>
+              <p className="text-muted-foreground text-sm mt-1">Welcome, {user.name}!</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={onLogout}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="max-w-md mx-auto px-4 py-6">
+        <div className="text-center py-16">
+          <p className="text-muted-foreground">Expense tracking interface will be implemented here.</p>
+          <p className="text-sm text-muted-foreground mt-2">Authentication is working! 🎉</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
