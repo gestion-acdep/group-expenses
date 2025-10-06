@@ -7,12 +7,12 @@
     "server"
   ],
   "scripts": {
-    "dev": "pnpm -C app dev",
-    "build": "pnpm -C app build && pnpm -C server build",
-    "start": "pnpm -C app start",
-    "app:dev": "pnpm -C app dev",
-    "server:dev": "pnpm -C server dev",
-    "app:build": "pnpm -C app build",
-    "server:build": "pnpm -C server build"
+    "dev": "npm run --workspace=app dev",
+    "build": "npm run --workspace=app build && npm run --workspace=server build",
+    "start": "npm run --workspace=app start",
+    "app:dev": "npm run --workspace=app dev",
+    "server:dev": "npm run --workspace=server dev",
+    "app:build": "npm run --workspace=app build",
+    "server:build": "npm run --workspace=server build"
   }
 }

@@ -8,10 +8,7 @@
   packages = [ pkgs.git ];
 
   # https://devenv.sh/languages/
-  languages.javascript = {
-    enable = true;
-    pnpm.enable = true;
-  };
+  languages.javascript.enable = true;
 
   # https://devenv.sh/processes/
   # processes.cargo-watch.exec = "cargo-watch";

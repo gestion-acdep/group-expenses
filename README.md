@@ -1,24 +1,24 @@
 # Group Expenses Monorepo
 
-This repository is organized as a pnpm monorepo with two workspaces:
+This repository is organized as a npm monorepo with two workspaces:
 
 - app: Next.js frontend (moved from the original repo)
 - server: Node.js TypeScript backend (scaffolded)
 
 ## Prerequisites
 
-- pnpm installed
+- npm installed
 
 ## Install
 
 Run at the repo root:
 
-- pnpm install
+- npm install
 
 ## Develop
 
-- Frontend: pnpm app:dev (or pnpm -C app dev)
-- Backend: pnpm server:dev (or pnpm -C server dev)
+- Frontend: npm run app:dev (or npm run --workspace=app dev)
+- Backend: npm run server:dev (or npm run --workspace=server dev)
 
 ## Docker (compose)
 
@@ -35,9 +35,9 @@ El `server` quedará expuesto en el host en `http://localhost:4050` y el `app` e
 
 ## Build
 
-- pnpm build
-- Start frontend: pnpm -C app start
-- Start backend: pnpm -C server start
+- npm run build
+- Start frontend: npm run --workspace=app start
+- Start backend: npm run --workspace=server start
 
 ## Structure
 
