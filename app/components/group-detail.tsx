@@ -414,7 +414,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
               <DialogHeader>
                 <DialogTitle>{t("addMemberTitle")}</DialogTitle>
                 <DialogDescription>
-                  {t("addMemberDescription")} "{group.name}"
+                   {`${t("addMemberDescription")} "${group.name}"`}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -640,7 +640,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
                 <DialogHeader>
                   <DialogTitle>{t("addExpenseTitle")}</DialogTitle>
                   <DialogDescription>
-                    {t("addExpenseDescription")} "{group.name}"
+                     {`${t("addExpenseDescription")} "${group.name}"`}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">

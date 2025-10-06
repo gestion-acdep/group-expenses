@@ -15,13 +15,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Users, DollarSign, Calendar, Trash2, ArrowRight, Search, RefreshCw, User, LogOut } from "lucide-react"
+import { Plus, Users, DollarSign, Calendar, Trash2, ArrowRight, Search, RefreshCw, User as UserIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { GroupDetail } from "@/components/group-detail"
 import { ProfilePanel } from "@/components/profile-panel"
 import { CURRENCIES, POPULAR_CURRENCIES, getCurrencySymbol, formatAmount } from "@/lib/currency"
 import { useTranslation } from "@/lib/translations"
 import { AuthProvider, useAuth } from "@/lib/auth-context"
+import type { User } from "@/lib/auth-context"
 import { Auth } from "@/components/auth"
 
 interface Group {
@@ -233,7 +234,7 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setIsProfileOpen(true)}>
-                <User className="w-4 h-4" />
+                <UserIcon className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -516,7 +517,7 @@ function AppContent() {
   return <ExpenseAppWithAuth user={user} token={token} onLogout={logout} />
 }
 
-function ExpenseAppWithAuth({ user, token, onLogout }: { user: any, token: string, onLogout: () => void }) {
+function ExpenseAppWithAuth({ user, token, onLogout }: { user: User, token: string, onLogout: () => void }) {
   return <ExpenseApp onLogout={onLogout} />
 }
 
