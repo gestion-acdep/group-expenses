@@ -1,12 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { db } from './db.js';
-import { users } from './schema.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import { logger } from './logger.js';
-import { verifyToken } from './auth.js';
-import { JWT_SECRET } from './config.js';
-import { eq } from 'drizzle-orm';
+
+// Import handlers
+import { handleRegister } from './handlers/auth/register.js';
+import { handleLogin } from './handlers/auth/login.js';
+import { handleMe } from './handlers/auth/me.js';
+import { handleCreateGroup } from './handlers/groups/create.js';
+import { handleGetGroups } from './handlers/groups/get.js';
+import { handleGetSpecificGroup } from './handlers/groups/get-specific.js';
+import { handleUpdateGroup } from './handlers/groups/update.js';
+import { handleDeleteGroup } from './handlers/groups/delete.js';
+import { handleCreateExpense } from './handlers/expenses/create.js';
+import { handleGetExpenses } from './handlers/expenses/get.js';
+import { handleUpdateExpense } from './handlers/expenses/update.js';
+import { handleDeleteExpense } from './handlers/expenses/delete.js';
 
 export async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   if (req.method === 'OPTIONS') {
@@ -17,152 +23,108 @@ export async function handleRequest(req: IncomingMessage, res: ServerResponse) {
 
   const url = new URL(req.url || '', `http://${req.headers.host}`);
 
-  // Registration endpoint
+  // Auth routes
   if (req.method === 'POST' && url.pathname === '/api/auth/register') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const { email, password, name } = JSON.parse(body);
-        logger.info(`Request parameters: email=${email}, name=${name}`);
-
-        if (!email || !password || !name) {
-          logger.info(`Response: 400 ${JSON.stringify({ error: 'Email, password, and name are required' })}`);
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Email, password, and name are required' }));
-          return;
-        }
-
-        // Check if user already exists
-        const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
-        if (existingUser.length > 0) {
-          logger.info(`Response: 409 ${JSON.stringify({ error: 'User already exists' })}`);
-          res.writeHead(409, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'User already exists' }));
-          return;
-        }
-
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create user
-        const result = await db.insert(users).values({
-          email,
-          password: hashedPassword,
-          name,
-        }).returning({ id: users.id, email: users.email, name: users.name });
-
-        const user = result[0];
-
-        // Generate JWT
-        const token = jwt.sign(
-          { userId: user.id, email: user.email },
-          JWT_SECRET,
-          { expiresIn: '7d' }
-        );
-
-        logger.info(`Response: 201 ${JSON.stringify({
-          user: { id: user.id, email: user.email, name: user.name },
-          token: '[REDACTED]'
-        })}`);
-        res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          user: { id: user.id, email: user.email, name: user.name },
-          token
-        }));
-      } catch (error) {
-        logger.error('Registration error:', error);
-        logger.info(`Response: 500 ${JSON.stringify({ error: 'Internal server error' })}`);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Internal server error' }));
-      }
-    });
+    await handleRegister(req, res);
     return;
   }
 
-  // Login endpoint
   if (req.method === 'POST' && url.pathname === '/api/auth/login') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const { email, password } = JSON.parse(body);
-        logger.info(`Request parameters: email=${email}`);
-
-        if (!email || !password) {
-          logger.info(`Response: 400 ${JSON.stringify({ error: 'Email and password are required' })}`);
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Email and password are required' }));
-          return;
-        }
-
-        // Find user
-        const userResult = await db.select().from(users).where(eq(users.email, email)).limit(1);
-        if (userResult.length === 0) {
-          logger.info(`Response: 401 ${JSON.stringify({ error: 'Invalid credentials' })}`);
-          res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid credentials' }));
-          return;
-        }
-
-        const user = userResult[0];
-
-        // Verify password
-        const isValidPassword = await bcrypt.compare(password, user.password);
-        if (!isValidPassword) {
-          logger.info(`Response: 401 ${JSON.stringify({ error: 'Invalid credentials' })}`);
-          res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid credentials' }));
-          return;
-        }
-
-        // Generate JWT
-        const token = jwt.sign(
-          { userId: user.id, email: user.email },
-          JWT_SECRET,
-          { expiresIn: '7d' }
-        );
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          user: { id: user.id, email: user.email, name: user.name },
-          token
-        }));
-      } catch (error) {
-        logger.error('Login error:', error);
-        logger.info(`Response: 500 ${JSON.stringify({ error: 'Internal server error' })}`);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Internal server error' }));
-      }
-    });
+    await handleLogin(req, res);
     return;
   }
 
-  // Protected route example - get current user
   if (req.method === 'GET' && url.pathname === '/api/auth/me') {
-    const user = verifyToken(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
+    await handleMe(req, res);
+    return;
+  }
+
+  // Group routes
+  if (req.method === 'POST' && url.pathname === '/api/groups') {
+    await handleCreateGroup(req, res);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/groups') {
+    await handleGetGroups(req, res);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/api/groups/')) {
+    const groupId = parseInt(url.pathname.split('/api/groups/')[1]);
+    if (isNaN(groupId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid group ID' }));
       return;
     }
+    await handleGetSpecificGroup(req, res, groupId);
+    return;
+  }
 
-    // Get full user data from database
-    const userData = await db.select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      createdAt: users.createdAt
-    }).from(users).where(eq(users.id, user.userId)).limit(1);
-
-    if (userData.length === 0) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'User not found' }));
+  if (req.method === 'PUT' && url.pathname.startsWith('/api/groups/')) {
+    const groupId = parseInt(url.pathname.split('/api/groups/')[1]);
+    if (isNaN(groupId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid group ID' }));
       return;
     }
+    await handleUpdateGroup(req, res, groupId);
+    return;
+  }
 
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ user: userData[0] }));
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/groups/')) {
+    const groupId = parseInt(url.pathname.split('/api/groups/')[1]);
+    if (isNaN(groupId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid group ID' }));
+      return;
+    }
+    await handleDeleteGroup(req, res, groupId);
+    return;
+  }
+
+  // Expense routes
+  if (req.method === 'POST' && url.pathname.match(/^\/api\/groups\/\d+\/expenses$/)) {
+    const groupId = parseInt(url.pathname.split('/api/groups/')[1].split('/expenses')[0]);
+    if (isNaN(groupId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid group ID' }));
+      return;
+    }
+    await handleCreateExpense(req, res, groupId);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.match(/^\/api\/groups\/\d+\/expenses$/)) {
+    const groupId = parseInt(url.pathname.split('/api/groups/')[1].split('/expenses')[0]);
+    if (isNaN(groupId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid group ID' }));
+      return;
+    }
+    await handleGetExpenses(req, res, groupId);
+    return;
+  }
+
+  if (req.method === 'PUT' && url.pathname.startsWith('/api/expenses/')) {
+    const expenseId = parseInt(url.pathname.split('/api/expenses/')[1]);
+    if (isNaN(expenseId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid expense ID' }));
+      return;
+    }
+    await handleUpdateExpense(req, res, expenseId);
+    return;
+  }
+
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/expenses/')) {
+    const expenseId = parseInt(url.pathname.split('/api/expenses/')[1]);
+    if (isNaN(expenseId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid expense ID' }));
+      return;
+    }
+    await handleDeleteExpense(req, res, expenseId);
     return;
   }
 
