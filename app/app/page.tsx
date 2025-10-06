@@ -45,7 +45,7 @@ interface Expense {
   category: string
 }
 
-function ExpenseApp() {
+function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
   const [groups, setGroups] = useState<Group[]>([])
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false)
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
@@ -249,6 +249,7 @@ function ExpenseApp() {
         onThemeChange={setTheme}
         language={language}
         onLanguageChange={setLanguage}
+        onLogout={onLogout}
       />
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-6 pb-20">
@@ -516,32 +517,7 @@ function AppContent() {
 }
 
 function ExpenseAppWithAuth({ user, token, onLogout }: { user: any, token: string, onLogout: () => void }) {
-  // This is a simplified version - in a real app you'd modify ExpenseApp to accept user props
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="max-w-md mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="text-center flex-1">
-              <h1 className="text-2xl font-bold text-foreground">Group Expenses</h1>
-              <p className="text-muted-foreground text-sm mt-1">Welcome, {user.name}!</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={onLogout}>
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="max-w-md mx-auto px-4 py-6">
-        <div className="text-center py-16">
-          <p className="text-muted-foreground">Expense tracking interface will be implemented here.</p>
-          <p className="text-sm text-muted-foreground mt-2">Authentication is working! 🎉</p>
-        </div>
-      </div>
-    </div>
-  )
+  return <ExpenseApp onLogout={onLogout} />
 }
 
 export default function Page() {

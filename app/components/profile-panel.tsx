@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X, User, Settings, Moon, Sun, Globe } from "lucide-react"
+import { X, User, Settings, Moon, Sun, Globe, LogOut } from "lucide-react"
 
 interface ProfilePanelProps {
   isOpen: boolean
@@ -16,6 +16,7 @@ interface ProfilePanelProps {
   onThemeChange: (theme: "light" | "dark") => void
   language: "en" | "es"
   onLanguageChange: (language: "en" | "es") => void
+  onLogout?: () => void
 }
 
 export function ProfilePanel({
@@ -27,6 +28,7 @@ export function ProfilePanel({
   onThemeChange,
   language,
   onLanguageChange,
+  onLogout,
 }: ProfilePanelProps) {
   const [editingName, setEditingName] = useState(false)
   const [newName, setNewName] = useState(currentUser)
@@ -52,6 +54,7 @@ export function ProfilePanel({
       language: "Language",
       english: "English",
       spanish: "Spanish",
+      logout: "Logout",
     },
     es: {
       profile: "Perfil",
@@ -66,6 +69,7 @@ export function ProfilePanel({
       language: "Idioma",
       english: "Inglés",
       spanish: "Español",
+      logout: "Cerrar sesión",
     },
   }
 
@@ -190,30 +194,45 @@ export function ProfilePanel({
                       </div>
                     </div>
 
-                    {/* Language Setting */}
-                    <div>
-                      <Label className="text-sm font-medium">{t.language}</Label>
-                      <div className="flex gap-2 mt-2">
-                        <Button
-                          variant={language === "en" ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => onLanguageChange("en")}
-                          className="flex-1"
-                        >
-                          <Globe className="w-4 h-4 mr-2" />
-                          {t.english}
-                        </Button>
-                        <Button
-                          variant={language === "es" ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => onLanguageChange("es")}
-                          className="flex-1"
-                        >
-                          <Globe className="w-4 h-4 mr-2" />
-                          {t.spanish}
-                        </Button>
-                      </div>
-                    </div>
+                     {/* Language Setting */}
+                     <div>
+                       <Label className="text-sm font-medium">{t.language}</Label>
+                       <div className="flex gap-2 mt-2">
+                         <Button
+                           variant={language === "en" ? "default" : "outline"}
+                           size="sm"
+                           onClick={() => onLanguageChange("en")}
+                           className="flex-1"
+                         >
+                           <Globe className="w-4 h-4 mr-2" />
+                           {t.english}
+                         </Button>
+                         <Button
+                           variant={language === "es" ? "default" : "outline"}
+                           size="sm"
+                           onClick={() => onLanguageChange("es")}
+                           className="flex-1"
+                         >
+                           <Globe className="w-4 h-4 mr-2" />
+                           {t.spanish}
+                         </Button>
+                       </div>
+                     </div>
+
+                     {/* Logout */}
+                     {onLogout && (
+                       <div className="pt-4 border-t border-border">
+                         <Button
+                           variant="destructive"
+                           size="sm"
+                           onClick={onLogout}
+                           className="w-full"
+                         >
+                           <LogOut className="w-4 h-4 mr-2" />
+                           {t.logout}
+                         </Button>
+                       </div>
+                     )}
                   </CardContent>
                 </Card>
               </div>
