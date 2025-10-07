@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -37,14 +37,13 @@ interface Group {
   name: string
   description: string
   members: string[]
-  expenses: Expense[]
   currency: string
   createdAt: string
   isActive: boolean
 }
 
 interface Expense {
-  id: string
+  id: number
   description: string
   amount: number
   paidBy: string
@@ -74,6 +73,7 @@ interface GroupDetailProps {
 }
 
 export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }: GroupDetailProps) {
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false)
   const [isBalancesOpen, setIsBalancesOpen] = useState(false)
@@ -91,6 +91,26 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
 
   const t = useTranslation(language)
 
+  useEffect(() => {
+    const loadExpenses = async () => {
+      try {
+        const response = await fetch(`/api/groups/${group.id}/expenses`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+          },
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setExpenses(data.expenses)
+        }
+      } catch (error) {
+        console.error('Failed to load expenses:', error)
+      }
+    }
+
+    loadExpenses()
+  }, [group.id])
+
   const calculateMemberBalances = (): MemberBalance[] => {
     const balances: { [key: string]: MemberBalance } = {}
 
@@ -103,7 +123,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
       }
     })
 
-    group.expenses.forEach((expense) => {
+    expenses.forEach((expense) => {
       if (balances[expense.paidBy]) {
         balances[expense.paidBy].totalPaid += expense.amount
       }
@@ -162,7 +182,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
     return memberBalance ? memberBalance.balance : 0
   }
 
-  const addMember = () => {
+  const addMember = async () => {
     if (!newMemberName.trim()) {
       toast({
         title: t("error"),
@@ -186,7 +206,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
       members: [...group.members, newMemberName.trim()],
     }
 
-    onUpdateGroup(updatedGroup)
+    await onUpdateGroup(updatedGroup)
     setNewMemberName("")
     setIsAddMemberOpen(false)
 
@@ -196,13 +216,13 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
     })
   }
 
-  const removeMember = (memberName: string) => {
+  const removeMember = async (memberName: string) => {
     const updatedGroup = {
       ...group,
       members: group.members.filter((member) => member !== memberName),
     }
 
-    onUpdateGroup(updatedGroup)
+    await onUpdateGroup(updatedGroup)
 
     toast({
       title: t("memberRemoved"),
@@ -210,7 +230,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
     })
   }
 
-  const addExpense = () => {
+  const addExpense = async () => {
     if (!newExpense.description.trim()) {
       toast({
         title: t("error"),
@@ -247,49 +267,88 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
       return
     }
 
-    const expense: Expense = {
-      id: Date.now().toString(),
-      description: newExpense.description.trim(),
-      amount: Number.parseFloat(newExpense.amount),
-      paidBy: newExpense.paidBy,
-      splitBetween: newExpense.splitBetween,
-      date: new Date().toISOString(),
-      category: newExpense.category,
+    try {
+      const response = await fetch(`/api/groups/${group.id}/expenses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+        },
+        body: JSON.stringify({
+          description: newExpense.description.trim(),
+          amount: newExpense.amount,
+          paidBy: newExpense.paidBy,
+          splitBetween: newExpense.splitBetween,
+          category: newExpense.category,
+          currency: group.currency,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setExpenses((prev) => [data.expense, ...prev])
+        setNewExpense({
+          description: "",
+          amount: "",
+          paidBy: "",
+          splitBetween: [],
+          category: t("general"),
+        })
+        setIsAddExpenseOpen(false)
+
+        toast({
+          title: t("success"),
+          description: `${t("expenseDescription")} "${data.expense.description}" ${t("expenseAdded")}`,
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: t("error"),
+          description: error.error || t("error"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to add expense:', error)
+      toast({
+        title: t("error"),
+        description: t("error"),
+        variant: "destructive",
+      })
     }
-
-    const updatedGroup = {
-      ...group,
-      expenses: [expense, ...group.expenses],
-    }
-
-    onUpdateGroup(updatedGroup)
-    setNewExpense({
-      description: "",
-      amount: "",
-      paidBy: "",
-      splitBetween: [],
-      category: t("general"),
-    })
-    setIsAddExpenseOpen(false)
-
-    toast({
-      title: t("success"),
-      description: `${t("expenseDescription")} "${expense.description}" ${t("expenseAdded")}`,
-    })
   }
 
-  const deleteExpense = (expenseId: string) => {
-    const updatedGroup = {
-      ...group,
-      expenses: group.expenses.filter((expense) => expense.id !== expenseId),
+  const deleteExpense = async (expenseId: number) => {
+    try {
+      const response = await fetch(`/api/expenses/${expenseId.toString()}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+        },
+      })
+
+      if (response.ok) {
+        setExpenses((prev) => prev.filter((expense) => expense.id !== expenseId))
+        toast({
+          title: t("expenseDeleted"),
+          description: t("expenseDeletedDescription"),
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: t("error"),
+          description: error.error || t("error"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to delete expense:', error)
+      toast({
+        title: t("error"),
+        description: t("error"),
+        variant: "destructive",
+      })
     }
-
-    onUpdateGroup(updatedGroup)
-
-    toast({
-      title: t("expenseDeleted"),
-      description: t("expenseDeletedDescription"),
-    })
   }
 
   const toggleSplitMember = (memberName: string) => {
@@ -326,7 +385,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
   }
 
   const getTotalExpenses = () => {
-    return group.expenses
+    return expenses
       .filter((expense) => expense.category !== t("debtCancellation"))
       .reduce((total, expense) => total + expense.amount, 0)
   }
@@ -342,30 +401,50 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
     { key: "other", label: t("other") },
   ]
 
-  const cancelDebt = (settlement: Settlement) => {
-    const cancelExpense: Expense = {
-      id: Date.now().toString(),
-      description: `${t("debtCancellation")}: ${settlement.from} → ${settlement.to}`,
-      amount: settlement.amount,
-      paidBy: settlement.from, // El deudor paga
-      splitBetween: [settlement.to], // El acreedor recibe el pago
-      date: new Date().toISOString(),
-      category: t("debtCancellation"),
+  const cancelDebt = async (settlement: Settlement) => {
+    try {
+      const response = await fetch(`/api/groups/${group.id}/expenses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+        },
+        body: JSON.stringify({
+          description: `${t("debtCancellation")}: ${settlement.from} → ${settlement.to}`,
+          amount: settlement.amount.toString(),
+          paidBy: settlement.from,
+          splitBetween: [settlement.to],
+          category: t("debtCancellation"),
+          currency: group.currency,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setExpenses((prev) => [data.expense, ...prev])
+        setIsCancelDebtOpen(false)
+        setSelectedSettlement(null)
+
+        toast({
+          title: t("debtCancelled"),
+          description: `${settlement.from} ${t("paidDebtTo")} ${settlement.to}`,
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: t("error"),
+          description: error.error || t("error"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to cancel debt:', error)
+      toast({
+        title: t("error"),
+        description: t("error"),
+        variant: "destructive",
+      })
     }
-
-    const updatedGroup = {
-      ...group,
-      expenses: [cancelExpense, ...group.expenses],
-    }
-
-    onUpdateGroup(updatedGroup)
-    setIsCancelDebtOpen(false)
-    setSelectedSettlement(null)
-
-    toast({
-      title: t("debtCancelled"),
-      description: `${settlement.from} ${t("paidDebtTo")} ${settlement.to}`,
-    })
   }
 
   return (
@@ -458,7 +537,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
             <DialogTrigger asChild>
               <Button
                 variant="outline"
-                disabled={group.expenses.length === 0}
+                 disabled={expenses.length === 0}
                 className="h-12 active:scale-95 transition-transform bg-transparent"
               >
                 <Calculator className="w-4 h-4 mr-2" />
@@ -769,7 +848,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
             </Dialog>
           </div>
 
-          {group.expenses.length === 0 ? (
+           {expenses.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
@@ -789,7 +868,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
             </Card>
           ) : (
             <div className="space-y-3">
-              {group.expenses.slice(0, 10).map((expense) => (
+               {expenses.slice(0, 10).map((expense) => (
                 <Card key={expense.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">

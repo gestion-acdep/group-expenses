@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ group: groupResult[0] });
+    return NextResponse.json({ group: { ...groupResult[0], members: JSON.parse(groupResult[0].members) } });
   } catch (error) {
     logger.error('Get group error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -42,10 +42,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 
   try {
-    const { name, description, currency, isActive } = await request.json();
+    const { name, description, members, currency, isActive } = await request.json();
+
+    const updateData: { name?: string; description?: string; members?: string; currency?: string; isActive?: boolean } = { name, description, currency, isActive };
+    if (members) {
+      updateData.members = JSON.stringify(members);
+    }
 
     const result = await db.update(groups)
-      .set({ name, description, currency, isActive })
+      .set(updateData)
       .where(and(eq(groups.id, groupId), eq(groups.userId, user.userId)))
       .returning();
 
@@ -53,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ group: result[0] });
+    return NextResponse.json({ group: { ...result[0], members: JSON.parse(result[0].members) } });
   } catch (error) {
     logger.error('Update group error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

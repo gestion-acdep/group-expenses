@@ -12,14 +12,19 @@ export const metadata: Metadata = {
   description:
     "Split expenses easily with friends, roommates, and travel companions. Track group spending and settle up with smart balance calculations.",
   generator: "v0.app",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
-  themeColor: "#15803d",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "SplitWise",
   },
   manifest: "/manifest.json",
+}
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({

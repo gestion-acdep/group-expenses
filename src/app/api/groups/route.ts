@@ -12,20 +12,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { name, description, currency } = await request.json();
+    const { name, description, members, currency } = await request.json();
 
-    if (!name || !currency) {
-      return NextResponse.json({ error: 'Name and currency are required' }, { status: 400 });
+    if (!name || !currency || !members) {
+      return NextResponse.json({ error: 'Name, currency, and members are required' }, { status: 400 });
     }
 
     const result = await db.insert(groups).values({
       name,
       description,
+      members: JSON.stringify(members),
       userId: user.userId,
       currency,
     }).returning();
 
-    return NextResponse.json({ group: result[0] }, { status: 201 });
+    return NextResponse.json({ group: { ...result[0], members: JSON.parse(result[0].members) } }, { status: 201 });
   } catch (error) {
     logger.error('Create group error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -41,7 +42,12 @@ export async function GET(request: NextRequest) {
   try {
     const userGroups = await db.select().from(groups).where(eq(groups.userId, user.userId));
 
-    return NextResponse.json({ groups: userGroups });
+    const groupsWithParsed = userGroups.map(group => ({
+      ...group,
+      members: JSON.parse(group.members)
+    }));
+
+    return NextResponse.json({ groups: groupsWithParsed });
   } catch (error) {
     logger.error('Get groups error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

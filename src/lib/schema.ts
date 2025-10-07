@@ -12,6 +12,7 @@ export const groups = sqliteTable('groups', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
   description: text('description'),
+  members: text('members').notNull(), // JSON string array
   userId: integer('user_id').notNull().references(() => users.id),
   currency: text('currency').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),

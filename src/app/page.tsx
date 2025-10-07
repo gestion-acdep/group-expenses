@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -30,21 +30,12 @@ interface Group {
   name: string
   description: string
   members: string[]
-  expenses: Expense[]
   currency: string
   createdAt: string
   isActive: boolean
 }
 
-interface Expense {
-  id: string
-  description: string
-  amount: number
-  paidBy: string
-  splitBetween: string[]
-  date: string
-  category: string
-}
+
 
 function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
   const [groups, setGroups] = useState<Group[]>([])
@@ -64,6 +55,7 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
   })
   const { toast } = useToast()
   const t = useTranslation(language)
+  const groupsLoaded = useRef(false)
 
   useEffect(() => {
     const savedUser = localStorage.getItem("expense-user")
@@ -93,25 +85,36 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
   }, [language])
 
   useEffect(() => {
+    if (groupsLoaded.current) return
+
     const loadGroups = async () => {
       setIsLoading(true)
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      const savedGroups = localStorage.getItem("expense-groups")
-      if (savedGroups) {
-        setGroups(JSON.parse(savedGroups))
+      try {
+        const response = await fetch('/api/groups', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+          },
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setGroups(data.groups)
+        }
+      } catch (error) {
+        console.error('Failed to load groups:', error)
+        toast({
+          title: t("error"),
+          description: t("error"),
+          variant: "destructive",
+        })
       }
       setIsLoading(false)
     }
 
     loadGroups()
-  }, [])
+    groupsLoaded.current = true
+  }, [t])
 
-  useEffect(() => {
-    if (!isLoading) {
-      localStorage.setItem("expense-groups", JSON.stringify(groups))
-    }
-  }, [groups, isLoading])
+
 
   const refreshData = async () => {
     setIsRefreshing(true)
@@ -129,7 +132,7 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
     })
   }
 
-  const createGroup = () => {
+  const createGroup = async () => {
     if (!newGroup.name.trim()) {
       toast({
         title: t("error"),
@@ -139,45 +142,127 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
       return
     }
 
-    const group: Group = {
-      id: Date.now().toString(),
-      name: newGroup.name,
-      description: newGroup.description,
-      members: [currentUser],
-      expenses: [],
-      currency: newGroup.currency,
-      createdAt: new Date().toISOString(),
-      isActive: true,
+    try {
+      const response = await fetch('/api/groups', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+        },
+        body: JSON.stringify({
+          name: newGroup.name,
+          description: newGroup.description,
+          members: [currentUser],
+          currency: newGroup.currency,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setGroups((prev) => [data.group, ...prev])
+        setNewGroup({ name: "", description: "", currency: "USD" })
+        setCurrencySearch("")
+        setIsCreateGroupOpen(false)
+
+        toast({
+          title: t("success"),
+          description: `${t("groupName")} "${data.group.name}" ${t("groupCreatedSuccess")}`,
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: t("error"),
+          description: error.error || t("error"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to create group:', error)
+      toast({
+        title: t("error"),
+        description: t("error"),
+        variant: "destructive",
+      })
     }
-
-    setGroups((prev) => [group, ...prev])
-    setNewGroup({ name: "", description: "", currency: "USD" })
-    setCurrencySearch("")
-    setIsCreateGroupOpen(false)
-
-    toast({
-      title: t("success"),
-      description: `${t("groupName")} "${group.name}" ${t("groupCreatedSuccess")}`,
-    })
   }
 
-  const deleteGroup = (groupId: string) => {
-    setGroups((prev) => prev.filter((group) => group.id !== groupId))
-    toast({
-      title: t("groupDeleted"),
-      description: t("groupDeletedDescription"),
-    })
+  const deleteGroup = async (groupId: string) => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+        },
+      })
+
+      if (response.ok) {
+        setGroups((prev) => prev.filter((group) => group.id !== groupId))
+        toast({
+          title: t("groupDeleted"),
+          description: t("groupDeletedDescription"),
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: t("error"),
+          description: error.error || t("error"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to delete group:', error)
+      toast({
+        title: t("error"),
+        description: t("error"),
+        variant: "destructive",
+      })
+    }
   }
 
-  const getTotalExpenses = (group: Group) => {
-    return group.expenses.reduce((total, expense) => total + expense.amount, 0)
+  const getTotalExpenses = (_group: Group) => {
+    // TODO: Load expenses from API to calculate total
+    return 0
   }
 
   const getActiveGroups = () => groups.filter((group) => group.isActive)
   const getClosedGroups = () => groups.filter((group) => !group.isActive)
 
-  const updateGroup = (updatedGroup: Group) => {
-    setGroups((prev) => prev.map((group) => (group.id === updatedGroup.id ? updatedGroup : group)))
+  const updateGroup = async (updatedGroup: Group) => {
+    try {
+      const response = await fetch(`/api/groups/${updatedGroup.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+        },
+        body: JSON.stringify({
+          name: updatedGroup.name,
+          description: updatedGroup.description,
+          members: updatedGroup.members,
+          currency: updatedGroup.currency,
+          isActive: updatedGroup.isActive,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setGroups((prev) => prev.map((group) => (group.id === updatedGroup.id ? data.group : group)))
+      } else {
+        const error = await response.json()
+        toast({
+          title: t("error"),
+          description: error.error || t("error"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to update group:', error)
+      toast({
+        title: t("error"),
+        description: t("error"),
+        variant: "destructive",
+      })
+    }
   }
 
   const selectGroup = (groupId: string) => {
