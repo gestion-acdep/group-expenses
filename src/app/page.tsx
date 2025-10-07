@@ -35,10 +35,29 @@ interface Group {
   isActive: boolean
 }
 
+interface Invitation {
+  id: number
+  groupId: number
+  invitedBy: number
+  invitedAt: string
+  group: {
+    id: number
+    name: string
+    description?: string
+    currency: string
+  }
+  invitedByUser: {
+    id: number
+    name: string
+    email: string
+  }
+}
+
 
 
 function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
   const [groups, setGroups] = useState<Group[]>([])
+  const [invitations, setInvitations] = useState<Invitation[]>([])
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false)
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [currencySearch, setCurrencySearch] = useState("")
@@ -87,20 +106,32 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
   useEffect(() => {
     if (groupsLoaded.current) return
 
-    const loadGroups = async () => {
+    const loadData = async () => {
       setIsLoading(true)
       try {
-        const response = await fetch('/api/groups', {
+        // Load groups
+        const groupsResponse = await fetch('/api/groups', {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
           },
         })
-        if (response.ok) {
-          const data = await response.json()
-          setGroups(data.groups)
+        if (groupsResponse.ok) {
+          const groupsData = await groupsResponse.json()
+          setGroups(groupsData.groups)
+        }
+
+        // Load invitations
+        const invitationsResponse = await fetch('/api/invitations', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+          },
+        })
+        if (invitationsResponse.ok) {
+          const invitationsData = await invitationsResponse.json()
+          setInvitations(invitationsData.invitations)
         }
       } catch (error) {
-        console.error('Failed to load groups:', error)
+        console.error('Failed to load data:', error)
         toast({
           title: t("error"),
           description: t("error"),
@@ -110,7 +141,7 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
       setIsLoading(false)
     }
 
-    loadGroups()
+    loadData()
     groupsLoaded.current = true
   }, [t])
 
@@ -271,6 +302,56 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
 
   const goBack = () => {
     setSelectedGroupId(null)
+  }
+
+  const handleInvitation = async (invitationId: number, action: 'accept' | 'reject') => {
+    try {
+      const response = await fetch(`/api/invitations/${invitationId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+        },
+        body: JSON.stringify({ action }),
+      })
+
+      if (response.ok) {
+        // Remove the invitation from the list
+        setInvitations(prev => prev.filter(inv => inv.id !== invitationId))
+
+        // If accepted, reload groups to include the new group
+        if (action === 'accept') {
+          const groupsResponse = await fetch('/api/groups', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+            },
+          })
+          if (groupsResponse.ok) {
+            const groupsData = await groupsResponse.json()
+            setGroups(groupsData.groups)
+          }
+        }
+
+        toast({
+          title: t("success"),
+          description: action === 'accept' ? t("invitationAccepted") : t("invitationRejected"),
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: t("error"),
+          description: error.error || t("error"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to handle invitation:', error)
+      toast({
+        title: t("error"),
+        description: t("error"),
+        variant: "destructive",
+      })
+    }
   }
 
   const filteredCurrencies = CURRENCIES.filter(
@@ -459,6 +540,62 @@ function ExpenseApp({ onLogout }: { onLogout?: () => void }) {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Pending Invitations */}
+        {invitations.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-4">{t("pendingInvitations")}</h2>
+            <div className="space-y-4">
+              {invitations.map((invitation) => (
+                <Card key={invitation.id} className="border-l-4 border-l-yellow-500">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base truncate">{invitation.group.name}</CardTitle>
+                        {invitation.group.description && (
+                          <CardDescription className="text-sm mt-1 line-clamp-2">{invitation.group.description}</CardDescription>
+                        )}
+                        <div className="text-xs text-muted-foreground mt-2">
+                          Invited by {invitation.invitedByUser.name} • {new Date(invitation.invitedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Users className="w-4 h-4" />
+                          <span>Group</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <DollarSign className="w-4 h-4" />
+                          <span>{invitation.group.currency}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleInvitation(invitation.id, 'reject')}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          {t("reject")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleInvitation(invitation.id, 'accept')}
+                        >
+                          {t("accept")}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Active Groups */}
         {getActiveGroups().length > 0 && (

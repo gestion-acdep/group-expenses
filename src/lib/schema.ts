@@ -19,6 +19,17 @@ export const groups = sqliteTable('groups', {
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
 });
 
+export const groupMemberships = sqliteTable('group_memberships', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  groupId: integer('group_id').notNull().references(() => groups.id),
+  userId: integer('user_id').notNull().references(() => users.id),
+  status: text('status').notNull(), // 'invited', 'accepted', 'declined'
+  invitedBy: integer('invited_by').notNull().references(() => users.id),
+  invitedAt: integer('invited_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  acceptedAt: integer('accepted_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+
 export const expenses = sqliteTable('expenses', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   description: text('description').notNull(),

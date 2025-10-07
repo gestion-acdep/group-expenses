@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { groups } from '@/lib/schema';
+import { groups, groupMemberships } from '@/lib/schema';
 import { logger } from '@/lib/logger';
 import { verifyToken } from '@/lib/auth';
-import { eq } from 'drizzle-orm';
+import { eq, or, and } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   const user = verifyToken(request);
@@ -40,9 +40,37 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const userGroups = await db.select().from(groups).where(eq(groups.userId, user.userId));
+    // Get groups where user is the owner
+    const ownedGroups = await db.select().from(groups).where(eq(groups.userId, user.userId));
 
-    const groupsWithParsed = userGroups.map(group => ({
+    // Get groups where user is an accepted member
+    const memberGroups = await db
+      .select({
+        id: groups.id,
+        name: groups.name,
+        description: groups.description,
+        members: groups.members,
+        userId: groups.userId,
+        currency: groups.currency,
+        createdAt: groups.createdAt,
+        isActive: groups.isActive,
+      })
+      .from(groups)
+      .innerJoin(groupMemberships, eq(groups.id, groupMemberships.groupId))
+      .where(
+        and(
+          eq(groupMemberships.userId, user.userId),
+          eq(groupMemberships.status, 'accepted')
+        )
+      );
+
+    // Combine and deduplicate groups
+    const allGroups = [...ownedGroups, ...memberGroups];
+    const uniqueGroups = allGroups.filter((group, index, self) =>
+      index === self.findIndex(g => g.id === group.id)
+    );
+
+    const groupsWithParsed = uniqueGroups.map(group => ({
       ...group,
       members: JSON.parse(group.members)
     }));

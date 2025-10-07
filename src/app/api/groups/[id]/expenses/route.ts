@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { groups, expenses } from '@/lib/schema';
+import { groups, expenses, groupMemberships } from '@/lib/schema';
 import { logger } from '@/lib/logger';
 import { verifyToken } from '@/lib/auth';
 import { eq, and } from 'drizzle-orm';
@@ -16,10 +16,22 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Invalid group ID' }, { status: 400 });
   }
 
-  // Verify group ownership
-  const groupCheck = await db.select().from(groups).where(and(eq(groups.id, groupId), eq(groups.userId, user.userId))).limit(1);
+  // Check permissions - owner or accepted member can add expenses
+  const groupCheck = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   if (groupCheck.length === 0) {
     return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+  }
+
+  const membershipCheck = await db.select()
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, user.userId)))
+    .limit(1);
+
+  const isOwner = groupCheck[0].userId === user.userId;
+  const isAcceptedMember = membershipCheck.length > 0 && membershipCheck[0].status === 'accepted';
+
+  if (!isOwner && !isAcceptedMember) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }
 
   try {
@@ -58,10 +70,22 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Invalid group ID' }, { status: 400 });
   }
 
-  // Verify group ownership
-  const groupCheck = await db.select().from(groups).where(and(eq(groups.id, groupId), eq(groups.userId, user.userId))).limit(1);
+  // Check permissions - owner or accepted member can view expenses
+  const groupCheck = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   if (groupCheck.length === 0) {
     return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+  }
+
+  const membershipCheck = await db.select()
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, user.userId)))
+    .limit(1);
+
+  const isOwner = groupCheck[0].userId === user.userId;
+  const isAcceptedMember = membershipCheck.length > 0 && membershipCheck[0].status === 'accepted';
+
+  if (!isOwner && !isAcceptedMember) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }
 
   try {

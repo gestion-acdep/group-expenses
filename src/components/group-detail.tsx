@@ -40,6 +40,22 @@ interface Group {
   currency: string
   createdAt: string
   isActive: boolean
+  memberships?: Membership[]
+  isOwner?: boolean
+  isMember?: boolean
+}
+
+interface Membership {
+  id: number
+  userId: number
+  status: 'invited' | 'accepted' | 'declined'
+  invitedAt: string
+  acceptedAt?: string
+  user: {
+    id: number
+    name: string
+    email: string
+  }
 }
 
 interface Expense {
@@ -65,6 +81,32 @@ interface Settlement {
   amount: number
 }
 
+interface Membership {
+  id: number
+  userId: number
+  status: 'invited' | 'accepted' | 'declined'
+  invitedAt: string
+  acceptedAt?: string
+  user: {
+    id: number
+    name: string
+    email: string
+  }
+}
+
+interface Membership {
+  id: number
+  userId: number
+  status: 'invited' | 'accepted' | 'declined'
+  invitedAt: string
+  acceptedAt?: string
+  user: {
+    id: number
+    name: string
+    email: string
+  }
+}
+
 interface GroupDetailProps {
   group: Group
   onUpdateGroup: (group: Group) => void
@@ -75,11 +117,13 @@ interface GroupDetailProps {
 export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }: GroupDetailProps) {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
+  const [isInviteUserOpen, setIsInviteUserOpen] = useState(false)
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false)
   const [isBalancesOpen, setIsBalancesOpen] = useState(false)
   const [isCancelDebtOpen, setIsCancelDebtOpen] = useState(false)
   const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null)
   const [newMemberName, setNewMemberName] = useState("")
+  const [inviteEmail, setInviteEmail] = useState("")
   const [newExpense, setNewExpense] = useState({
     description: "",
     amount: "",
@@ -182,6 +226,12 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
     return memberBalance ? memberBalance.balance : 0
   }
 
+  const getAllMemberNames = (): string[] => {
+    const traditionalMembers = group.members || []
+    const userMembers = group.memberships?.filter(m => m.status === 'accepted').map(m => m.user.name) || []
+    return [...traditionalMembers, ...userMembers]
+  }
+
   const addMember = async () => {
     if (!newMemberName.trim()) {
       toast({
@@ -228,6 +278,62 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
       title: t("memberRemoved"),
       description: `${memberName} ${t("memberRemoved")}`,
     })
+  }
+
+  const inviteUser = async () => {
+    if (!inviteEmail.trim() || !inviteEmail.includes('@')) {
+      toast({
+        title: t("error"),
+        description: t("validEmailRequired"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/groups/${group.id}/invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+        },
+        body: JSON.stringify({ email: inviteEmail.trim() }),
+      })
+
+      if (response.ok) {
+        setInviteEmail("")
+        setIsInviteUserOpen(false)
+        // Refresh group data to show new invitation
+        const groupResponse = await fetch(`/api/groups/${group.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+          },
+        })
+        if (groupResponse.ok) {
+          const data = await groupResponse.json()
+          onUpdateGroup(data.group)
+        }
+
+        toast({
+          title: t("success"),
+          description: t("invitationSent"),
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: t("error"),
+          description: error.error || t("error"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to invite user:', error)
+      toast({
+        title: t("error"),
+        description: t("error"),
+        variant: "destructive",
+      })
+    }
   }
 
   const addExpense = async () => {
@@ -363,7 +469,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
   const selectAllMembers = () => {
     setNewExpense((prev) => ({
       ...prev,
-      splitBetween: group.members,
+      splitBetween: getAllMemberNames(),
     }))
   }
 
@@ -467,7 +573,9 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
         <div className="grid grid-cols-2 gap-4">
           <Card className="hover:shadow-md transition-shadow">
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-primary">{group.members.length}</div>
+              <div className="text-2xl font-bold text-primary">
+                {(group.members?.length || 0) + (group.memberships?.filter(m => m.status === 'accepted').length || 0)}
+              </div>
               <div className="text-sm text-muted-foreground">{t("membersCount")}</div>
             </CardContent>
           </Card>
@@ -518,6 +626,49 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
                   </Button>
                   <Button onClick={addMember} className="flex-1 h-12 font-semibold">
                     {t("addMember")}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isInviteUserOpen} onOpenChange={setIsInviteUserOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="h-12 active:scale-95 transition-transform bg-transparent">
+                <UserPlus className="w-4 h-4 mr-2" />
+                {t("inviteUser")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm mx-auto m-4">
+              <DialogHeader>
+                <DialogTitle>{t("inviteUserTitle")}</DialogTitle>
+                <DialogDescription>
+                  {`${t("inviteUserDescription")} "${group.name}"`}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="invite-email">{t("email")}</Label>
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    placeholder={t("emailPlaceholder")}
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        inviteUser()
+                      }
+                    }}
+                    className="h-12 text-base"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button variant="outline" onClick={() => setIsInviteUserOpen(false)} className="flex-1 h-12">
+                    {t("cancel")}
+                  </Button>
+                  <Button onClick={inviteUser} className="flex-1 h-12 font-semibold">
+                    {t("invite")}
                   </Button>
                 </div>
               </div>
@@ -636,10 +787,10 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
 
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-4">
-            {t("membersCount")} ({group.members.length})
+            {t("membersCount")} ({(group.members?.length || 0) + (group.memberships?.filter(m => m.status === 'accepted').length || 0)})
           </h2>
 
-          {group.members.length === 0 ? (
+          {((group.members?.length || 0) + (group.memberships?.filter(m => m.status === 'accepted').length || 0)) === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
@@ -655,10 +806,81 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
             </Card>
           ) : (
             <div className="space-y-3">
-              {group.members.map((member, index) => {
+              {/* Show invited users first */}
+              {group.memberships?.filter(membership => membership.status === 'invited').map((membership) => (
+                <Card key={`invited-${membership.id}`} className="hover:shadow-md transition-shadow border-dashed">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-semibold text-yellow-600">{membership.user.name.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div>
+                          <div className="font-medium text-foreground">{membership.user.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Invited • {membership.user.email}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        Pending
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* Show accepted user members */}
+              {group.memberships?.filter(membership => membership.status === 'accepted').map((membership) => {
+                const balance = getMemberBalance(membership.user.name)
+                return (
+                  <Card key={`member-${membership.id}`} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                            <span className="text-sm font-semibold text-primary">{membership.user.name.charAt(0).toUpperCase()}</span>
+                          </div>
+                          <div>
+                            <div className="font-medium text-foreground">{membership.user.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {t("balance")}:{" "}
+                              <span
+                                className={
+                                  balance > 0.01
+                                    ? "text-green-600 font-medium"
+                                    : balance < -0.01
+                                      ? "text-red-600 font-medium"
+                                      : ""
+                                }
+                              >
+                                {balance > 0.01 ? "+" : ""}
+                                {formatAmount(Math.abs(balance), group.currency)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {group.isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {/* TODO: Remove user from group */}}
+                            className="text-destructive hover:text-destructive p-3"
+                          >
+                            <UserMinus className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+
+              {/* Show traditional members (names without accounts) */}
+              {group.members?.map((member, index) => {
                 const balance = getMemberBalance(member)
                 return (
-                  <Card key={index} className="hover:shadow-md transition-shadow">
+                  <Card key={`traditional-${index}`} className="hover:shadow-md transition-shadow">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -708,7 +930,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
               <DialogTrigger asChild>
                 <Button
                   size="sm"
-                  disabled={group.members.length === 0}
+                  disabled={getAllMemberNames().length === 0}
                   className="h-10 active:scale-95 transition-transform"
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -774,11 +996,11 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
                       onChange={(e) => setNewExpense((prev) => ({ ...prev, paidBy: e.target.value }))}
                     >
                       <option value="">{t("selectWhoPaid")}</option>
-                      {group.members.map((member) => (
-                        <option key={member} value={member}>
-                          {member}
-                        </option>
-                      ))}
+                       {getAllMemberNames().map((member) => (
+                         <option key={member} value={member}>
+                           {member}
+                         </option>
+                       ))}
                     </select>
                   </div>
 
@@ -806,21 +1028,21 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
                         </Button>
                       </div>
                     </div>
-                    <div className="space-y-3 max-h-32 overflow-y-auto">
-                      {group.members.map((member) => (
-                        <div key={member} className="flex items-center space-x-3 p-2">
-                          <Checkbox
-                            id={`split-${member}`}
-                            checked={newExpense.splitBetween.includes(member)}
-                            onCheckedChange={() => toggleSplitMember(member)}
-                            className="w-5 h-5"
-                          />
-                          <Label htmlFor={`split-${member}`} className="text-base">
-                            {member}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
+                     <div className="space-y-3 max-h-32 overflow-y-auto">
+                       {getAllMemberNames().map((member) => (
+                         <div key={member} className="flex items-center space-x-3 p-2">
+                           <Checkbox
+                             id={`split-${member}`}
+                             checked={newExpense.splitBetween.includes(member)}
+                             onCheckedChange={() => toggleSplitMember(member)}
+                             className="w-5 h-5"
+                           />
+                           <Label htmlFor={`split-${member}`} className="text-base">
+                             {member}
+                           </Label>
+                         </div>
+                       ))}
+                     </div>
                     {newExpense.splitBetween.length > 0 && (
                       <p className="text-sm text-muted-foreground mt-3 p-3 bg-muted rounded-md">
                         {t("splitWays")} {newExpense.splitBetween.length} {t("ways")} ={" "}
@@ -856,7 +1078,7 @@ export function GroupDetail({ group, onUpdateGroup, onGoBack, language = "en" }:
                 </div>
                 <h3 className="font-semibold text-foreground mb-2">{t("noExpensesYet")}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  {group.members.length === 0 ? t("noExpensesWithoutMembers") : t("noExpensesDescription")}
+                  {getAllMemberNames().length === 0 ? t("noExpensesWithoutMembers") : t("noExpensesDescription")}
                 </p>
                 {group.members.length > 0 && (
                   <Button size="sm" onClick={() => setIsAddExpenseOpen(true)} className="h-10">

@@ -20,6 +20,7 @@ export const translations = {
 
     // Main page
     activeGroups: "Active Groups",
+    pendingInvitations: "Pending Invitations",
     totalExpenses: "Total Expenses",
     createNewGroup: "Create New Group",
     noGroupsYet: "No groups yet",
@@ -119,6 +120,17 @@ export const translations = {
     // Invite
     inviteCopied: "Invite copied!",
     inviteDescription: "Share this with your friends to invite them",
+    inviteUser: "Invite User",
+    inviteUserTitle: "Invite User by Email",
+    inviteUserDescription: "Send an invitation to join",
+    email: "Email",
+    emailPlaceholder: "friend@example.com",
+    validEmailRequired: "Please enter a valid email address",
+    invitationSent: "Invitation sent successfully!",
+    invitationAccepted: "Invitation accepted successfully!",
+    invitationRejected: "Invitation rejected",
+    reject: "Reject",
+    accept: "Accept",
 
     // Debt cancellation translations
     cancelDebt: "Cancel Debt",
@@ -167,6 +179,7 @@ export const translations = {
 
     // Main page
     activeGroups: "Grupos Activos",
+    pendingInvitations: "Invitaciones Pendientes",
     totalExpenses: "Gastos Totales",
     createNewGroup: "Crear Nuevo Grupo",
     noGroupsYet: "Aún no hay grupos",
@@ -266,6 +279,17 @@ export const translations = {
     // Invite
     inviteCopied: "¡Invitación copiada!",
     inviteDescription: "Comparte esto con tus amigos para invitarlos",
+    inviteUser: "Invitar Usuario",
+    inviteUserTitle: "Invitar Usuario por Email",
+    inviteUserDescription: "Enviar una invitación para unirse a",
+    email: "Email",
+    emailPlaceholder: "amigo@ejemplo.com",
+    validEmailRequired: "Por favor ingresa una dirección de email válida",
+    invitationSent: "¡Invitación enviada exitosamente!",
+    invitationAccepted: "¡Invitación aceptada exitosamente!",
+    invitationRejected: "Invitación rechazada",
+    reject: "Rechazar",
+    accept: "Aceptar",
 
     // Debt cancellation translations
     cancelDebt: "Cancelar Deuda",

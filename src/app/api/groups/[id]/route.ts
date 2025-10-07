@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { groups } from '@/lib/schema';
+import { groups, groupMemberships, users, expenses } from '@/lib/schema';
 import { logger } from '@/lib/logger';
 import { verifyToken } from '@/lib/auth';
 import { eq, and } from 'drizzle-orm';
@@ -17,13 +17,53 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 
   try {
-    const groupResult = await db.select().from(groups).where(and(eq(groups.id, groupId), eq(groups.userId, user.userId))).limit(1);
-
+    // Check if user owns the group or is a member
+    const groupResult = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
     if (groupResult.length === 0) {
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ group: { ...groupResult[0], members: JSON.parse(groupResult[0].members) } });
+    const group = groupResult[0];
+    const isOwner = group.userId === user.userId;
+
+    // Check if user is invited/accepted member
+    const membershipResult = await db.select()
+      .from(groupMemberships)
+      .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, user.userId)))
+      .limit(1);
+
+    const isMember = membershipResult.length > 0 && membershipResult[0].status === 'accepted';
+
+    if (!isOwner && !isMember) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    // Get all memberships for the group
+    const memberships = await db.select({
+      id: groupMemberships.id,
+      userId: groupMemberships.userId,
+      status: groupMemberships.status,
+      invitedAt: groupMemberships.invitedAt,
+      acceptedAt: groupMemberships.acceptedAt,
+      user: {
+        id: users.id,
+        name: users.name,
+        email: users.email,
+      }
+    })
+    .from(groupMemberships)
+    .leftJoin(users, eq(groupMemberships.userId, users.id))
+    .where(eq(groupMemberships.groupId, groupId));
+
+    return NextResponse.json({
+      group: {
+        ...group,
+        members: JSON.parse(group.members),
+        memberships,
+        isOwner,
+        isMember
+      }
+    });
   } catch (error) {
     logger.error('Get group error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -42,6 +82,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 
   try {
+    // Check permissions - only owner can update group details
+    const groupResult = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+    if (groupResult.length === 0) {
+      return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+    }
+
+    const group = groupResult[0];
+    if (group.userId !== user.userId) {
+      return NextResponse.json({ error: 'Only group owner can update group details' }, { status: 403 });
+    }
+
     const { name, description, members, currency, isActive } = await request.json();
 
     const updateData: { name?: string; description?: string; members?: string; currency?: string; isActive?: boolean } = { name, description, currency, isActive };
@@ -49,16 +100,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       updateData.members = JSON.stringify(members);
     }
 
-    const result = await db.update(groups)
+    await db.update(groups)
       .set(updateData)
-      .where(and(eq(groups.id, groupId), eq(groups.userId, user.userId)))
-      .returning();
+      .where(eq(groups.id, groupId));
 
-    if (result.length === 0) {
-      return NextResponse.json({ error: 'Group not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ group: { ...result[0], members: JSON.parse(result[0].members) } });
+    // Fetch the updated group
+    const updatedGroup = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+    return NextResponse.json({ group: { ...updatedGroup[0], members: JSON.parse(updatedGroup[0].members) } });
   } catch (error) {
     logger.error('Update group error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -77,13 +125,24 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   }
 
   try {
-    const result = await db.delete(groups)
-      .where(and(eq(groups.id, groupId), eq(groups.userId, user.userId)))
-      .returning();
-
-    if (result.length === 0) {
+    // Check permissions - only owner can delete group
+    const groupResult = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+    if (groupResult.length === 0) {
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
+
+    const group = groupResult[0];
+    if (group.userId !== user.userId) {
+      return NextResponse.json({ error: 'Only group owner can delete the group' }, { status: 403 });
+    }
+
+    // Delete related records first to avoid foreign key constraint errors
+    await db.delete(expenses).where(eq(expenses.groupId, groupId));
+    await db.delete(groupMemberships).where(eq(groupMemberships.groupId, groupId));
+
+    const result = await db.delete(groups)
+      .where(eq(groups.id, groupId))
+      .returning();
 
     return NextResponse.json({ message: 'Group deleted' });
   } catch (error) {
